@@ -15,6 +15,7 @@ config();
 
 interface DatabaseConfig {
   host: string;
+  port?: number;
   user: string;
   password: string;
   database: string;
@@ -73,12 +74,35 @@ class MySQLServer {
     await this.server.close();
   }
 
+  private getEnvConfig(): DatabaseConfig | null {
+    const { MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE, MYSQL_PORT } = process.env;
+    
+    if (MYSQL_HOST && MYSQL_USER && MYSQL_PASSWORD && MYSQL_DATABASE) {
+      return {
+        host: MYSQL_HOST,
+        port: MYSQL_PORT ? parseInt(MYSQL_PORT, 10) : 3306,
+        user: MYSQL_USER,
+        password: MYSQL_PASSWORD,
+        database: MYSQL_DATABASE
+      };
+    }
+    
+    return null;
+  }
+
   private async ensureConnection() {
     if (!this.config) {
-      throw new McpError(
-        ErrorCode.InvalidRequest,
-        'Database configuration not set. Use connect_db tool first.'
-      );
+      const envConfig = this.getEnvConfig();
+      
+      if (envConfig) {
+        this.config = envConfig;
+        console.error('Using database config from environment variables');
+      } else {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          'Database configuration not set. Use connect_db tool first or set environment variables.'
+        );
+      }
     }
 
     if (!this.connection) {
@@ -98,13 +122,17 @@ class MySQLServer {
       tools: [
         {
           name: 'connect_db',
-          description: 'Connect to MySQL database',
+          description: 'Connect to MySQL database. NOTE: Default connection exists - only use when requested or if other commands fail',
           inputSchema: {
             type: 'object',
             properties: {
               host: {
                 type: 'string',
                 description: 'Database host',
+              },
+              port: {
+                type: 'number',
+                description: 'Database port (default: 3306)',
               },
               user: {
                 type: 'string',
@@ -227,6 +255,7 @@ class MySQLServer {
 
     this.config = {
       host: args.host,
+      port: args.port || 3306,
       user: args.user,
       password: args.password,
       database: args.database,
@@ -238,7 +267,7 @@ class MySQLServer {
         content: [
           {
             type: 'text',
-            text: 'Successfully connected to database',
+            text: 'Successfully connected to MySQL database',
           },
         ],
       };
