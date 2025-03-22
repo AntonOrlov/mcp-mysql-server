@@ -61,10 +61,17 @@ class MySQLServer {
     
     // Error handling
     this.server.onerror = (error) => console.error('[MCP Error]', error);
-    process.on('SIGINT', async () => {
-      await this.cleanup();
+    const handleTermination = async () => {
+      try {
+        await this.cleanup();
+      } catch (error) {
+        console.error('Error during cleanup:', error);
+        process.exit(1);
+      }
       process.exit(0);
-    });
+    };
+    process.on('SIGINT', handleTermination);
+    process.stdin.on('close', handleTermination);
   }
 
   private async cleanup() {
